@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) !void {
     exe.addIncludePath(b.path("include/"));
     exe.addLibraryPath(b.path("lib/"));
     exe.linkSystemLibrary("xdg-shell");
+    exe.linkSystemLibrary("wayland-client");
 
     b.installArtifact(exe);
 }

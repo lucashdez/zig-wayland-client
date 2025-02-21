@@ -1,8 +1,8 @@
 const std = @import("std");
-const xdg = @cImport({
-    @cInclude("xdg-shell.h");
-});
+const wl = @import("os/xdg_raw.zig");
+const print = std.debug.print;
 
 pub fn main() !void {
-    _ = xdg;
+    const display = wl.wl_display_connect("WAYLAND_DISPLAY");
+    _ = display;
 }

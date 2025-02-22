@@ -40,7 +40,11 @@ pub const WaylandIdAllocator = struct {
     }
 };
 
-pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !void {
+const Registry = struct {
+    id: u32,
+};
+
+pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !Registry {
     const GetRegistryMessage = packed struct {
         header: WLHeader,
         new_id: usize,
@@ -57,16 +61,17 @@ pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !void {
 
     const written = try std.posix.write(socket, std.mem.asBytes(&msg));
     assert(written == @sizeOf(GetRegistryMessage));
+    return Registry{ .id = new_id };
 }
 
-const ResponseIt = struct {
+const EventIt = struct {
     buf: []const u8,
     const Output = struct {
         header: WLHeader,
         data: []const u8,
     };
 
-    fn next(self: *ResponseIt) ?Output {
+    fn next(self: *EventIt) ?Output {
         const header_size = @sizeOf(WLHeader);
         if (self.buf.len == 0) {
             return null;
@@ -87,7 +92,7 @@ const ResponseIt = struct {
         };
     }
 
-    fn consume(self: *ResponseIt, len: usize) void {
+    fn consume(self: *EventIt, len: usize) void {
         if (self.buf.len == len) {
             self.buf = &.{};
         } else {
@@ -103,11 +108,12 @@ pub fn main() !void {
     // socket is online
     std.debug.print("Socket is online with id: {any}\n", .{wayland_socket});
     // get_registry
-    try get_registry(wayland_socket, wids.allocate());
+    const registry = try get_registry(wayland_socket, wids.allocate());
+    _ = registry;
     var buf: [1024]u8 = undefined;
     const response_l = try std.posix.read(wayland_socket, &buf);
-    var it = ResponseIt{ .buf = buf[0..response_l] };
+    var it = EventIt{ .buf = buf[0..response_l] };
     while (it.next()) |event| {
-        print("{any}\n", .{event.header});
+        print("{any}, {s}\n", .{ event.header, std.mem.trim(u8, event.data, " ") });
     }
 }

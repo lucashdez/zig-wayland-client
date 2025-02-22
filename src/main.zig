@@ -1,4 +1,6 @@
 const std = @import("std");
+const assert = std.debug.assert;
+const print = std.debug.print;
 
 pub fn create_wayland_socket(allocator: std.mem.Allocator) !std.posix.socket_t {
     const xdg_runtime_dir = std.posix.getenv("XDG_RUNTIME_DIR") orelse return error.NoXdgRuntime;
@@ -30,14 +32,21 @@ const DisplayOp = struct {
     const get_registry = 1;
 };
 
-pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !void {
+pub const WaylandIdAllocator = struct {
+    id: u32 = 2,
+    pub fn allocate(self: *WaylandIdAllocator) u32 {
+        defer self.id += 1;
+        return self.id;
+    }
+};
 
+pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !void {
     const GetRegistryMessage = packed struct {
         header: WLHeader,
         new_id: usize,
     };
 
-    const message = GetRegistryMessage {
+    const msg = GetRegistryMessage{
         .header = .{
             .id = WlIds.display,
             .op = DisplayOp.get_registry,
@@ -46,12 +55,59 @@ pub fn get_registry(socket: std.posix.socket_t, new_id: usize) !void {
         .new_id = new_id,
     };
 
+    const written = try std.posix.write(socket, std.mem.asBytes(&msg));
+    assert(written == @sizeOf(GetRegistryMessage));
 }
+
+const ResponseIt = struct {
+    buf: []const u8,
+    const Output = struct {
+        header: WLHeader,
+        data: []const u8,
+    };
+
+    fn next(self: *ResponseIt) ?Output {
+        const header_size = @sizeOf(WLHeader);
+        if (self.buf.len == 0) {
+            return null;
+        }
+        const header_bytes = self.buf[0..header_size];
+        const header = std.mem.bytesAsValue(WLHeader, header_bytes);
+
+        if (self.buf.len < header.size) {
+            return null;
+        }
+
+        const data = self.buf[header_size..header.size];
+        self.consume(header.size);
+
+        return Output{
+            .header = header.*,
+            .data = data,
+        };
+    }
+
+    fn consume(self: *ResponseIt, len: usize) void {
+        if (self.buf.len == len) {
+            self.buf = &.{};
+        } else {
+            self.buf = self.buf[len..];
+        }
+    }
+};
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-    const wayland_socket = create_wayland_socket(allocator);
-
+    const wayland_socket = try create_wayland_socket(allocator);
+    var wids = WaylandIdAllocator{};
     // socket is online
-    std.debug.print("Socket is online with id: {any}", .{wayland_socket});
+    std.debug.print("Socket is online with id: {any}\n", .{wayland_socket});
+    // get_registry
+    try get_registry(wayland_socket, wids.allocate());
+    var buf: [1024]u8 = undefined;
+    const response_l = try std.posix.read(wayland_socket, &buf);
+    var it = ResponseIt{ .buf = buf[0..response_l] };
+    while (it.next()) |event| {
+        print("{any}\n", .{event.header});
+    }
 }

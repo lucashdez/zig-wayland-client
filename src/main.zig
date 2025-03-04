@@ -250,13 +250,12 @@ pub fn main() !void {
                     .global => |g| {
                         //std.log.debug("{d}, {s}, {d}", .{g.name, g.interface, g.version});
                         if (std.mem.eql(u8, g.interface, "wl_compositor")) {
-                            std.log.debug("need to bind to compoisitor", .{});
                             const CompositorBindingMsg = packed struct {
                                 header: WLHeader,
                                 name: usize,
                                 new_id: usize,
                             };
-                            const msg = .{
+                            const msg = CompositorBindingMsg{
                                 .header = .{
                                     .id = WlIds.registry,
                                     .op = RegistryOps.bind,

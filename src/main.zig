@@ -6,6 +6,7 @@ const f_events = @import("events.zig");
 const Display = @import("display.zig").Display;
 const Registry = @import("registry.zig").Registry;
 const Compositor = @import("compositor.zig").Compositor;
+const Surface = @import("surface.zig").Surface;
 const WaylandConnection = f_wayland_connection.WaylandConnection;
 const WlHeader = f_wayland_connection.WlHeader;
 const EventIt = f_events.EventIt;
@@ -21,6 +22,7 @@ pub const WaylandIdAllocator = struct {
 
 const RawWayland  = struct {
     compositor: ?Compositor,
+    surface: ?Surface,
 };
 
 pub fn main() !void {
@@ -29,7 +31,7 @@ pub fn main() !void {
     const display = Display.init();
     const registry = try display.getRegistry(wl_connection.socket);
     var compositor: ?Compositor = undefined;
-    var raw: RawWayland = RawWayland {.compositor = null};
+    var raw: RawWayland = undefined;
 
     var buf: [4096]u8 = undefined;
     const response_l = try std.posix.read(wl_connection.socket, &buf);
@@ -50,5 +52,6 @@ pub fn main() !void {
             print("{any}, {s}\n", .{ event.header, std.mem.trim(u8, event.data, " ") });
         }
     }
-    print("{any}", .{raw.compositor});
+    raw.surface = try raw.compositor.?.createSurface(wl_connection.socket, ids.allocate());
+    print("{any}, {any}", .{raw.compositor, raw.surface});
 }

@@ -8,10 +8,7 @@ const WaylandConnection = f_wayland_connection.WaylandConnection;
 const WlHeader = f_wayland_connection.WlHeader;
 const EventIt = f_events.EventIt;
 const EventDataParser = f_events.EventDataParser;
-
-const RegistryOps = struct {
-    const bind = 0;
-};
+const Registry = @import("registry.zig").Registry;
 
 pub const WaylandIdAllocator = struct {
     id: u32 = 3,
@@ -21,69 +18,12 @@ pub const WaylandIdAllocator = struct {
     }
 };
 
-pub const Registry = struct {
-    id: u32,
-};
-
-const RegistryGlobal = struct {
-    name: u32,
-    interface: []const u8,
-    version: u32,
-};
-
-const RegistryGlobalRemove = struct {
-    name: u32,
-};
-
-const RegistryAction = union(enum) {
-    global: RegistryGlobal,
-    global_remove: RegistryGlobalRemove,
-};
-
-fn parseDataResponse(comptime T: type, data: []const u8) !T {
-    var ret: T = undefined;
-    var it = EventDataParser{ .buf = data };
-    inline for (std.meta.fields(T)) |field| {
-        switch (field.type) {
-            u32 => {
-                @field(ret, field.name) = try it.getU32();
-            },
-            []const u8 => {
-                @field(ret, field.name) = try it.getString();
-            },
-            else => {
-                std.log.err("Kind of type not in Type", .{});
-            },
-        }
-    }
-    return ret;
-}
-
-fn handleRegistryEvent(event: EventIt.Output) !RegistryAction {
-    switch (event.header.op) {
-        0 => {
-            return .{
-                .global = try parseDataResponse(RegistryGlobal, event.data),
-            };
-        },
-        1 => {
-            return .{
-                .global_remove = try parseDataResponse(RegistryGlobalRemove, event.data),
-            };
-        },
-        else => {
-            std.log.err("Unknown wl_registry event {d}", .{event.header.op});
-            return error.NotImplemented;
-        },
-    }
-}
-
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const wl_connection: WaylandConnection = try WaylandConnection.init(allocator);
     const display = Display.init();
-
     const registry = try display.getRegistry(wl_connection.socket);
+
     var buf: [4096]u8 = undefined;
     const response_l = try std.posix.read(wl_connection.socket, &buf);
     var it = EventIt{ .buf = buf[0..response_l] };
@@ -94,7 +34,7 @@ pub fn main() !void {
         if (event.header.id == display.id) {
             try display.handleEvent(event);
         } else if (event.header.id == registry.id) {
-            const action = try handleRegistryEvent(event);
+            const action = try registry.handleEvent(event);
             switch (action) {
                 .global => |g| {
                     if (std.mem.eql(u8, g.interface, "wl_compositor")) {
@@ -106,14 +46,13 @@ pub fn main() !void {
                         const msg = CompositorBindingMsg{
                             .header = .{
                                 .id = registry.id,
-                                .op = RegistryOps.bind,
+                                .op = 0, // TODO: Change this
                                 .size = @sizeOf(CompositorBindingMsg),
                             },
                             .name = g.name,
                             .new_id = ids.allocate(),
                         };
                         const written = try std.posix.write(wl_connection.socket, std.mem.asBytes(&msg));
-                        std.debug.print("Did write: {d} bytes \nSizeof: {d}", .{ written, @sizeOf(CompositorBindingMsg) });
                         assert(written == @sizeOf(CompositorBindingMsg));
                     } else {
                         std.log.debug("{d}, {s}, {d}", .{ g.name, g.interface, g.version });

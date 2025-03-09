@@ -2,7 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert; 
 const f_wl_connection = @import("wayland_connection.zig");
 const WlHeader = f_wl_connection.WlHeader;
-const Registry = @import("main.zig").Registry;
+const Registry = @import("registry.zig").Registry;
 const EventDataParser = @import("events.zig").EventDataParser;
 const EventIt = @import("events.zig").EventIt;
 

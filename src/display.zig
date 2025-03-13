@@ -1,5 +1,5 @@
 const std = @import("std");
-const assert = std.debug.assert; 
+const assert = std.debug.assert;
 const f_wl_connection = @import("wayland_connection.zig");
 const WlHeader = f_wl_connection.WlHeader;
 const Registry = @import("registry.zig").Registry;
@@ -59,7 +59,6 @@ pub const Display = struct {
             header: WlHeader,
             new_id: usize,
         };
-
         const msg = GetRegistryMessage{
             .header = .{
                 .id = self.id,
@@ -68,9 +67,16 @@ pub const Display = struct {
             },
             .new_id = new_id,
         };
-
         const written = try std.posix.write(socket, std.mem.asBytes(&msg));
         assert(written == @sizeOf(GetRegistryMessage));
         return Registry{ .id = new_id };
+    }
+
+    pub fn sync(self: *const Display, socket: std.posix.socket_t) !void {
+        const new_id: u32 = 999999;
+        const SyncMessage = packed struct { header: WlHeader, new_id: usize };
+        const msg = SyncMessage{ .header = .{ .id = self.id, .op = DisplayOps.sync.val(), .size = @sizeOf(SyncMessage) }, .new_id = new_id };
+        const written = try std.posix.write(socket, std.mem.asBytes(&msg));
+        assert(written == @sizeOf(SyncMessage));
     }
 };

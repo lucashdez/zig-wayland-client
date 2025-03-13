@@ -20,7 +20,7 @@ pub const WaylandIdAllocator = struct {
     }
 };
 
-const RawWayland  = struct {
+const RawWayland = struct {
     compositor: ?Compositor,
     surface: ?Surface,
 };
@@ -52,6 +52,7 @@ pub fn main() !void {
             print("{any}, {s}\n", .{ event.header, std.mem.trim(u8, event.data, " ") });
         }
     }
+    try display.sync(wl_connection.socket);
     raw.surface = try raw.compositor.?.createSurface(wl_connection.socket, ids.allocate());
-    print("{any}, {any}", .{raw.compositor, raw.surface});
+    print("{any}, {any}", .{ raw.compositor, raw.surface });
 }

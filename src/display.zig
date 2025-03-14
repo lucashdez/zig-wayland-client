@@ -72,11 +72,21 @@ pub const Display = struct {
         return Registry{ .id = new_id };
     }
 
-    pub fn sync(self: *const Display, socket: std.posix.socket_t) !void {
-        const new_id: u32 = 999999;
+    pub fn sync(self: *const Display, socket: std.posix.socket_t, id: u32) !void {
         const SyncMessage = packed struct { header: WlHeader, new_id: usize };
-        const msg = SyncMessage{ .header = .{ .id = self.id, .op = DisplayOps.sync.val(), .size = @sizeOf(SyncMessage) }, .new_id = new_id };
+        const msg = SyncMessage{ .header = .{ .id = self.id, .op = DisplayOps.sync.val(), .size = @sizeOf(SyncMessage) }, .new_id = id };
         const written = try std.posix.write(socket, std.mem.asBytes(&msg));
         assert(written == @sizeOf(SyncMessage));
+        var buf: [4096]u8 = undefined;
+
+        const readed = try std.posix.read(socket, &buf);
+        var it = EventIt{ .buf = buf[0..readed] };
+        std.log.info("Waiting for done()", .{});
+        while (it.next()) |event| {
+            if (event.header.id == id and event.header.op == 0) {
+                break;
+            }
+        }
+        std.log.info("done()", .{});
     }
 };

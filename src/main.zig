@@ -52,7 +52,7 @@ pub fn main() !void {
             print("{any}, {s}\n", .{ event.header, std.mem.trim(u8, event.data, " ") });
         }
     }
-    try display.sync(wl_connection.socket);
+    try display.sync(wl_connection.socket, ids.allocate());
     raw.surface = try raw.compositor.?.createSurface(wl_connection.socket, ids.allocate());
     print("{any}, {any}", .{ raw.compositor, raw.surface });
 }
